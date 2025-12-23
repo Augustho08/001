@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Status da Página</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:
+    radial-gradient(circle at 20% 10%,#1e293b,transparent 40%),
+    radial-gradient(circle at 80% 80%,#020617,transparent 50%),
+    #020617;
+  color:#e5e7eb;
+  font-family:system-ui;
+}
+
+/* CARD PRINCIPAL */
+.card{
+  width:clamp(320px,92vw,420px);
+  background:#020617;
+  border:1px solid #1f2937;
+  border-radius:22px;
+  padding:clamp(22px,5vw,34px);
+  text-align:center;
+  box-shadow:0 25px 60px rgba(0,0,0,.6);
+  animation:enter .4s ease;
+}
+
+@keyframes enter{
+  from{opacity:0;transform:translateY(8px) scale(.98)}
+  to{opacity:1;transform:none}
+}
+
+.icon{font-size:36px;margin-bottom:10px}
+h2{margin:0;font-size:20px}
+p{margin:10px 0 22px;color:#9ca3af}
+
+.actions{display:flex;gap:12px}
+
+button{
+  flex:1;
+  padding:16px;
+  border-radius:14px;
+  border:none;
+  font-size:16px;
+  font-weight:700;
+  cursor:pointer;
+  transition:.2s;
+}
+
+button:hover{transform:translateY(-2px)}
+
+.ok{
+  background:linear-gradient(180deg,#22c55e,#14532d);
+  color:#052e16;
+}
+
+.no{
+  background:linear-gradient(180deg,#ef4444,#7f1d1d);
+  color:#fff;
+}
+
+.small{margin-top:18px;font-size:12px;color:#6b7280}
+
+/* BOTÃO ADM */
+.admin-btn{
+  position:fixed;
+  bottom:18px;
+  right:18px;
+  width:54px;
+  height:54px;
+  border-radius:50%;
+  background:#020617;
+  border:1px solid #1f2937;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  box-shadow:0 10px 30px rgba(0,0,0,.6);
+  transition:.2s;
+}
+
+.admin-btn:hover{transform:scale(1.06)}
+.admin-btn span{font-size:22px}
+
+/* MODAL ADM */
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(2,6,23,.7);
+  display:none;
+  align-items:center;
+  justify-content:center;
+}
+
+.modal.show{display:flex}
+
+.modal-card{
+  width:300px;
+  background:#020617;
+  border:1px solid #1f2937;
+  border-radius:18px;
+  padding:22px;
+  text-align:center;
+  box-shadow:0 25px 60px rgba(0,0,0,.6);
+  animation:enter .3s ease;
+}
+
+.modal-card input{
+  width:100%;
+  margin-top:12px;
+  padding:12px;
+  border-radius:10px;
+  border:1px solid #1f2937;
+  background:#0b1220;
+  color:#fff;
+}
+
+.modal-card button{
+  width:100%;
+  margin-top:14px;
+  background:linear-gradient(180deg,#38bdf8,#0369a1);
+  color:#020617;
+}
+
+.err{
+  margin-top:10px;
+  font-size:12px;
+  color:#ef4444;
+}
+</style>
+</head>
+
+<body>
+
+<div class="card" id="box">
+  <div class="icon">📶</div>
+  <h2>Verificação rápida</h2>
+  <p>A página carregou corretamente no seu dispositivo?</p>
+
+  <div class="actions">
+    <button class="ok" onclick="send(true)">Sim</button>
+    <button class="no" onclick="send(false)">Não</button>
+  </div>
+
+  <div class="small">Resposta anônima · leva menos de 1s</div>
+</div>
+
+<!-- BOTÃO ADM -->
+<div class="admin-btn" onclick="openAdmin()">
+  <span>🧑‍💻</span>
+</div>
+
+<!-- MODAL ADM -->
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <div class="icon">🔒</div>
+    <h2>Painel ADM</h2>
+    <input id="pass" type="password" placeholder="Senha">
+    <button onclick="login()">Entrar</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<script>
+function send(ok){
+  fetch("/consent",{
+    method:"POST",
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ok})
+  }).finally(()=>{
+    box.innerHTML=`
+      <div class="icon">✅</div>
+      <h2>Tudo certo</h2>
+      <p>Obrigado pelo retorno.</p>
+    `;
+  });
+}
+
+function openAdmin(){
+  modal.classList.add("show");
+}
+
+function login(){
+  fetch("/admin/login",{
+    method:"POST",
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({pass:pass.value})
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.ok){
+      // 👉 REDIRECT FINAL
+      window.location.href="admin.html";
+    }else{
+      err.textContent="Senha incorreta";
+    }
+  });
+}
+
+modal.onclick=e=>{
+  if(e.target===modal) modal.classList.remove("show");
+};
+</script>
+
+</body>
+</html>

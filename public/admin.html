@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel ADM</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#020617;
+  color:#e5e7eb;
+  font-family:system-ui;
+}
+
+/* HEADER */
+header{
+  padding:16px;
+  border-bottom:1px solid #1f2937;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+}
+
+header h1{margin:0;font-size:18px}
+
+button{
+  padding:8px 14px;
+  border-radius:12px;
+  border:1px solid #1f2937;
+  background:#0b1220;
+  color:#fff;
+  cursor:pointer;
+}
+button.ok{background:#064e3b}
+button.danger{background:#7f1d1d}
+button.copy{background:#0369a1}
+
+/* LAYOUT */
+.container{
+  padding:16px;
+  display:grid;
+  gap:16px;
+}
+
+.cards{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:16px;
+}
+
+.card{
+  background:#020617;
+  border:1px solid #1f2937;
+  border-radius:16px;
+  padding:16px;
+}
+
+.card h3{
+  margin:0 0 6px;
+  font-size:13px;
+  color:#9ca3af;
+}
+.card p{margin:0;font-size:22px;font-weight:600}
+
+/* FILTROS */
+.filters{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+input{
+  padding:8px 10px;
+  border-radius:10px;
+  border:1px solid #1f2937;
+  background:#0b1220;
+  color:#fff;
+}
+
+/* TABELA */
+.table-wrap{
+  background:#020617;
+  border:1px solid #1f2937;
+  border-radius:16px;
+  overflow:auto;
+}
+
+table{width:100%;border-collapse:collapse}
+th,td{
+  padding:10px;
+  border-bottom:1px solid #1f2937;
+  font-size:14px;
+}
+th{color:#9ca3af;font-weight:500}
+
+.actions{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+
+pre{
+  background:#020617;
+  border:1px solid #1f2937;
+  border-radius:16px;
+  padding:12px;
+  overflow:auto;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>Painel Administrativo</h1>
+  <div>
+    <button onclick="load()">Atualizar</button>
+    <button class="danger" onclick="delSelected()">Apagar selecionados</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="cards">
+    <div class="card">
+      <h3>Total de IPs</h3>
+      <p id="total">0</p>
+    </div>
+    <div class="card">
+      <h3>Última atualização</h3>
+      <p id="last">-</p>
+    </div>
+  </div>
+
+  <!-- BUSCA / FILTRO (MANTIDA) -->
+  <div class="filters">
+    <input id="fip" placeholder="Filtrar por IP">
+    <input id="fowner" placeholder="Filtrar por nome">
+    <button onclick="applyFilter()">Filtrar</button>
+    <button onclick="clearFilter()">Limpar</button>
+  </div>
+
+  <div class="table-wrap">
+    <table id="t"></table>
+  </div>
+
+  <!-- BUSCA API (MANTIDA) -->
+  <div class="card">
+    <h3>Buscar IP (API)</h3>
+    <input id="ipq" placeholder="8.8.8.8">
+    <button onclick="lookup()">Buscar</button>
+    <pre id="api"></pre>
+  </div>
+
+</div>
+
+<script>
+let cache=[];
+let selected=new Set();
+
+/* AUTO LOAD */
+load();
+setInterval(load,10000);
+
+function load(){
+  fetch("/admin/ips")
+    .then(r=>r.json())
+    .then(d=>{
+      cache=d.map((x,i)=>({
+        ...x,
+        owner:x.owner || `IP ${String(i+1).padStart(2,"0")}`
+      }));
+      render(cache);
+      total.textContent=cache.length;
+      last.textContent=new Date().toLocaleTimeString();
+    });
+}
+
+function render(data){
+  t.innerHTML=`
+    <tr>
+      <th><input type="checkbox" onclick="toggleAll(this)"></th>
+      <th>IP</th>
+      <th>Nome</th>
+      <th>Local</th>
+      <th>Dispositivo</th>
+      <th>Ações</th>
+    </tr>
+  `+data.map(x=>`
+    <tr>
+      <td>
+        <input type="checkbox"
+          ${selected.has(x.id)?"checked":""}
+          onchange="toggle(${x.id},this.checked)">
+      </td>
+      <td>${x.ip}</td>
+      <td>
+        <input value="${x.owner}"
+          onchange="rename(${x.id},this.value)">
+      </td>
+      <td>${x.city||"-"} / ${x.country||"-"}</td>
+      <td>${x.device||"-"}</td>
+      <td class="actions">
+        <button class="copy" onclick="copyIP('${x.ip}')">Copiar</button>
+        <button class="danger" onclick="del(${x.id})">Apagar</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+function toggle(id,on){
+  on ? selected.add(id) : selected.delete(id);
+}
+
+function toggleAll(el){
+  selected.clear();
+  if(el.checked) cache.forEach(x=>selected.add(x.id));
+  render(cache);
+}
+
+function delSelected(){
+  if(!selected.size || !confirm("Apagar IPs selecionados?")) return;
+
+  fetch("/admin/delete-multi",{
+    method:"POST",
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ids:[...selected]})
+  }).then(()=>{
+    selected.clear();
+    load();
+  });
+}
+
+function applyFilter(){
+  const ip=fip.value.toLowerCase();
+  const owner=fowner.value.toLowerCase();
+  render(cache.filter(x=>
+    (!ip || x.ip.toLowerCase().includes(ip)) &&
+    (!owner || x.owner.toLowerCase().includes(owner))
+  ));
+}
+
+function clearFilter(){
+  fip.value=""; 
+  fowner.value="";
+  render(cache);
+}
+
+function rename(id,name){
+  fetch("/admin/rename",{
+    method:"POST",
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id,name})
+  });
+}
+
+function del(id){
+  if(!confirm("Apagar IP?")) return;
+  fetch("/admin/delete",{
+    method:"POST",
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id})
+  }).then(load);
+}
+
+function copyIP(ip){
+  navigator.clipboard.writeText(ip);
+}
+
+function lookup(){
+  fetch(`https://api.iplocation.net/?ip=${ipq.value}&format=json`)
+    .then(r=>r.json())
+    .then(d=>{
+      api.textContent=JSON.stringify(d,null,2);
+    });
+}
+</script>
+
+</body>
+</html>
